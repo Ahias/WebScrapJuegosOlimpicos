@@ -1,9 +1,8 @@
-﻿import os
+import os
 import requests
 import csv
 import argparse
-from datetime import datetime
-from datetime import timedelta
+import datetime
 from bs4 import BeautifulSoup
 import time
 
@@ -23,6 +22,8 @@ def WriteFiles(filePath,List):
         writer = csv.writer(csvFile)
         for row in List:
             writer.writerow(row)
+        return 0
+   
 #Fin
 
 
@@ -31,7 +32,7 @@ def WriteFiles(filePath,List):
 ##--------------------------------------------------###
 #funcion para consultar los juegos olimpicos realizados
 #Inicio
-def GetOlympicGames(url,list,AnnoInicio,AnnoFin):
+def GetOlympicGames(url,list,AnnoInicio,AnnoFin,BaseURL):
     response = requests.post(url)
     soup=BeautifulSoup(response.text,"html.parser")
     table = soup.find('table',{'class': 'datagrid_header_table'})
@@ -39,14 +40,14 @@ def GetOlympicGames(url,list,AnnoInicio,AnnoFin):
     for row in table.findAll("tr"):
         cells = row.findAll('td')
         if(isFirtsLine==False):
-            Name=cells[1].find(text=True) 
-            Year=int(str(Name).split(" ")[0])
-            if((Year>= AnnoInicio) & (Year<= AnnoFin)):                 
-                Key=str(Name).split(" ")[0] + "_" + str(Name).split(" ")[1][0:3]
-                City=" ".join(  str(Name).split(" ")[2:] )
-                FullURL="http://www.theolympicdatabase.nl/" + cells[1].find_all('a')[0]['href']            
-                Country=cells[2].find(text=True)
-                NewRow=[Key,Name,Country,City,FullURL]
+            ##["YearOlympic","OlympicName","OlympicCountry","OlympicCity","URL"]
+            OlympicName=cells[1].find(text=True) 
+            YearOlympic=int(str(OlympicName).split(" ")[0])
+            if((YearOlympic>= AnnoInicio) & (YearOlympic<= AnnoFin)):                   
+                OlympicCity=" ".join(  str(OlympicName).split(" ")[2:] )
+                URL=BaseURL + cells[1].find_all('a')[0]['href']            
+                OlympicCountry=cells[2].find(text=True)
+                NewRow=[YearOlympic,OlympicName,OlympicCountry,OlympicCity,URL]
                 list.append(NewRow)     
                 time.sleep(1)
         else:
@@ -58,11 +59,11 @@ def GetOlympicGames(url,list,AnnoInicio,AnnoFin):
 ##--------------------------------------------------###
 #funcion que consulta los ganadores de medallas por juego olimpico
 #Inicio
-def GetDetailOlympicGames(url,list,key,BaseURL):
+def GetDetailOlympicGames(Parent,list,BaseURL):
 
     ##En el detalle del juego olimpico, se muestran 3 opciones para consultar mas detalle
     ##Para nuestro fin, solo estamos interezados en consultar los ganadores
-    ParentResponse = requests.post(url)
+    ParentResponse = requests.post(Parent[4])
     ParentSoup=BeautifulSoup(ParentResponse.text,"html.parser")
     ParentTable = ParentSoup.find('table',{'class': 'data_table'})
     ##En esta parte consultamos especificamente el miembro que contiene la URL del detalle de los ganadores
@@ -77,26 +78,39 @@ def GetDetailOlympicGames(url,list,key,BaseURL):
     for row in WinnerTable.findAll("tr"):
         cells = row.findAll('td')
         if(isFirtsLine==False):
-            #HeaderDetailOlympicGameList=["Key", "Order", "Winner", "Nationality", "Sport", "Discipline","Medal"]
-            Order=cells[0].find(text=True) 
-            Winner=cells[1].find(text=True) 
-            DetailMedalsURL= BaseURL +  cells[1].find_all('a')[0]['href'] 
-            Nationality=cells[2].find_all('a')[0]['title'] 
-            
-            
-            #consulta de medallas
+
+          
+
+            #["YearOlympic","OlympicName","OlympicCountry","OlympicCity","WinnerName", "WinnerNationality","WinnerDateBirth","WinnerGender", "Sport", "Discipline","Medal"]
+
+            ##Informacion del juego olimpico
+            YearOlympic=Parent[0]
+            OlympicName=Parent[1]
+            OlympicCountry=Parent[2]
+            OlympicCity=Parent[3]
+
+            ##Informacion del ganador
+            WinnerName=cells[1].find(text=True) 
+            WinnerNationality=cells[2].find_all('a')[0]['title']    
+            DetailMedalsURL= BaseURL +  cells[1].find_all('a')[0]['href']   
             DetailMedalsResponse = requests.post(DetailMedalsURL)
             DetailMedalsSoup=BeautifulSoup(DetailMedalsResponse.text,"html.parser")
+            WinnerGender=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[1].findAll("td")[2].text
+            #Valor no definido
+            WinnerDateBirth="01-01-1900"
+            if(len(DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr"))>=4):
+                if(len(DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[3].findAll("td"))>=3):
+                    WinnerDateBirth=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[3].findAll("td")[2].text
+
+
+            #Informacion de medallas
             DetailMedalsTable = DetailMedalsSoup.find('table',{'class': 'datagrid_header_table'})
-
             isFirtsLine=True
-
             for RowDetail in DetailMedalsTable.findAll("tr"):
                 cellDetail=RowDetail.findAll('td')
                 if(isFirtsLine==False):
-                    KeyYear=key[0:4]
-                    Year=cellDetail[0].find(text=True)
-                    if(cellDetail[0].find(text=True) == key[0:4]):
+                    YearMedal=cellDetail[0].find(text=True)
+                    if(int(YearMedal) == YearOlympic):
                         Sport = cellDetail[2].find(text=True) 
                         Discipline= cellDetail[3].find(text=True) 
                         Gold=  cellDetail[4].find_all('img')#[0]['src']
@@ -111,9 +125,9 @@ def GetDetailOlympicGames(url,list,key,BaseURL):
                         elif (len(Broze)>0):
                             Medal="Broze"
            
-                        NewRow=[key,Order,Winner,Nationality,Sport,Discipline,Medal]
+                        NewRow=[YearOlympic,OlympicName,OlympicCountry,OlympicCity,WinnerName, WinnerNationality,WinnerDateBirth,WinnerGender, Sport, Discipline,Medal]
                         list.append(NewRow)
-                        time.sleep(0.500)
+                        #time.sleep(0.500)
 
                 else:
                     isFirtsLine=False           
@@ -138,8 +152,6 @@ AnnoInicio=int(input())
 print("Ingrese el año de fin:")
 AnnoFin=int(input())
 
-
-
 ##-----------------------------------------------------
 ##-----------------------------------------------------
 ##-----------------------------------------------------
@@ -148,52 +160,48 @@ AnnoFin=int(input())
 print("")
 
 print("#------------------------------------------------------------------------------#")
-print ("Generado archivo maestro...")
+print ("Generado archivo...")
 print("...")
-#Current directory where is located the script
-CurrentDir = os.path.dirname(__file__)
-FileName = str( AnnoInicio) + "_" + str(AnnoFin) + "_Master_Olympic_Games.csv"
-FilePath = os.path.join(CurrentDir, FileName)
 
+print("Inicio del proceso:" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
 BaseURL="http://www.theolympicdatabase.nl/"
-QueryURL="http://www.theolympicdatabase.nl/olympic/games"
+QueryURL=BaseURL + "olympic/games"
 OlympicGameList=[]
-HeaderOlympicGameList=["Key","Name","Country","City","URL"]
+HeaderOlympicGameList=["YearOlympic","OlympicName","OlympicCountry","OlympicCity","URL"]
 OlympicGameList.append(HeaderOlympicGameList)
 
-GetOlympicGames(QueryURL,OlympicGameList,AnnoInicio,AnnoFin)
-WriteFiles(FilePath,OlympicGameList)
-
-print("")
-
-print("Archivo generado almacenado en el siguiente directorio:" + FilePath)
-print("")
-
+GetOlympicGames(QueryURL,OlympicGameList,AnnoInicio,AnnoFin,BaseURL)
 
 ##-----------------------------------------------------
 ##-----------------------------------------------------
 ##-----------------------------------------------------
 #Consultar el detalle de los ganadores de medallas por juego olimpico
-print("#------------------------------------------------------------------------------#")
-print ("Generado archivo detalle...")
-FileName = str( AnnoInicio) + "_" + str(AnnoFin) + "_Detail_Medal.csv"
+#Current directory where is located the script
+CurrentDir = os.path.dirname(__file__)
+FileName = str( AnnoInicio) + "_" + str(AnnoFin) + "_OlympicGame_Medal.csv"
 FilePath = os.path.join(CurrentDir, FileName)
 DetailOlympicGameList=[]
-HeaderDetailOlympicGameList=["Key", "Order", "Winner", "Nationality", "Sport", "Discipline","Medal"]
+HeaderDetailOlympicGameList=["YearOlympic","OlympicName","OlympicCountry","OlympicCity","WinnerName", "WinnerNationality","WinnerDateBirth","WinnerGender", "Sport", "Discipline","Medal"]
 DetailOlympicGameList.append(HeaderDetailOlympicGameList)
 IsFirtsOlympicGame=True
+
+
 for row in OlympicGameList:
     if (IsFirtsOlympicGame==False):
-        GetDetailOlympicGames(row[4],DetailOlympicGameList,row[0],BaseURL)
+        GetDetailOlympicGames(row,DetailOlympicGameList,BaseURL)
     else:
         IsFirtsOlympicGame=False
  
 WriteFiles(FilePath,DetailOlympicGameList)
-print("")
 
-print("Archivo generado almacenado en el siguiente directorio:" + FilePath)
-print("")
+
+
+print("Fin del proceso:" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+print("Juegos olímpicos encontrados:" + str(len(OlympicGameList)-1))
+print("Medallas Ganadas:" + str(len(DetailOlympicGameList)-1))
+print("Archivo almacenado en el directorio:" + FilePath)
+
 
 
 
