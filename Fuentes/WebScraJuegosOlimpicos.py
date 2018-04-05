@@ -48,10 +48,10 @@ def GetOlympicGames(url,list,AnnoInicio,AnnoFin,BaseURL):
                 URL=BaseURL + cells[1].find_all('a')[0]['href']            
                 OlympicCountry=cells[2].find(text=True)
                 NewRow=[YearOlympic,OlympicName,OlympicCountry,OlympicCity,URL]
-                list.append(NewRow)     
-                time.sleep(1)
+                list.append(NewRow)    
         else:
             isFirtsLine=False
+    return 0
 #Fin
 
 
@@ -78,6 +78,7 @@ def GetDetailOlympicGames(Parent,list,BaseURL):
     for row in WinnerTable.findAll("tr"):
         cells = row.findAll('td')
         if(isFirtsLine==False):
+            time.sleep(0.300)           
 
           
 
@@ -95,46 +96,62 @@ def GetDetailOlympicGames(Parent,list,BaseURL):
             DetailMedalsURL= BaseURL +  cells[1].find_all('a')[0]['href']   
             DetailMedalsResponse = requests.post(DetailMedalsURL)
             DetailMedalsSoup=BeautifulSoup(DetailMedalsResponse.text,"html.parser")
-            WinnerGender=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[1].findAll("td")[2].text
+           
             #Valor no definido
-            WinnerDateBirth="01-01-1900"
-            if(len(DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr"))>=4):
-                if(len(DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[3].findAll("td"))>=3):
-                    WinnerDateBirth=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[3].findAll("td")[2].text
+            WinnerDateBirth="NULL"
+            WinnerGender="NULL"
+            #No todos los detalles de los ganadores contiene toda la informacion
+            try:
+                WinnerGender=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[1].findAll("td")[2].text
+            except:
+                WinnerGender="NULL"
 
+
+            try:
+                DateBirth=DetailMedalsSoup.findAll('table',{'class': 'data_table'})[0].findAll("tr")[3].findAll("td")[2].text
+                if(len(str(DateBirth).strip())==10):
+                    WinnerDateBirth=DateBirth
+            except:
+                WinnerDateBirth="NULL"
+        
 
             #Informacion de medallas
             DetailMedalsTable = DetailMedalsSoup.find('table',{'class': 'datagrid_header_table'})
             isFirtsLine=True
-            for RowDetail in DetailMedalsTable.findAll("tr"):
-                cellDetail=RowDetail.findAll('td')
-                if(isFirtsLine==False):
-                    YearMedal=cellDetail[0].find(text=True)
-                    if(int(YearMedal) == YearOlympic):
-                        Sport = cellDetail[2].find(text=True) 
-                        Discipline= cellDetail[3].find(text=True) 
-                        Gold=  cellDetail[4].find_all('img')#[0]['src']
-                        Silver= cellDetail[5].find_all('img')#[0]['src']
-                        Broze= cellDetail[6].find_all('img')#[0]['src']
+            
+            #En algunos caso no existen informacion del detalle de las medallas
+            try:
+                for RowDetail in DetailMedalsTable.findAll("tr"):
+                    cellDetail=RowDetail.findAll('td')
+                    if(isFirtsLine==False):
+                        YearMedal=cellDetail[0].find(text=True)
+                        if(int(YearMedal) == YearOlympic):
+                            Sport = cellDetail[2].find(text=True) 
+                            Discipline= cellDetail[3].find(text=True) 
+                            Gold=  cellDetail[4].find_all('img')#[0]['src']
+                            Silver= cellDetail[5].find_all('img')#[0]['src']
+                            Broze= cellDetail[6].find_all('img')#[0]['src']
 
-                        Medal=""
-                        if (len(Gold)>0):
-                            Medal="Gold"
-                        elif (len(Silver)>0):
-                            Medal="Silver"
-                        elif (len(Broze)>0):
-                            Medal="Broze"
+                            Medal=""
+                            if (len(Gold)>0):
+                                Medal="Gold"
+                            elif (len(Silver)>0):
+                                Medal="Silver"
+                            elif (len(Broze)>0):
+                                Medal="Broze"
            
-                        NewRow=[YearOlympic,OlympicName,OlympicCountry,OlympicCity,WinnerName, WinnerNationality,WinnerDateBirth,WinnerGender, Sport, Discipline,Medal]
-                        list.append(NewRow)
-                        #time.sleep(0.500)
+                            NewRow=[YearOlympic,OlympicName,OlympicCountry,OlympicCity,WinnerName, WinnerNationality,WinnerDateBirth,WinnerGender, Sport, Discipline,Medal]
+                            list.append(NewRow)           
 
-                else:
-                    isFirtsLine=False           
+                    else:
+                        isFirtsLine=False  
+            except:
+                isFirtsLine=False   
 
                    
         else:
             isFirtsLine=False
+    return 0
 #Fin
 
 ##---------------Fin de funciones----------------------
@@ -170,6 +187,9 @@ QueryURL=BaseURL + "olympic/games"
 OlympicGameList=[]
 HeaderOlympicGameList=["YearOlympic","OlympicName","OlympicCountry","OlympicCity","URL"]
 OlympicGameList.append(HeaderOlympicGameList)
+
+#try:
+
 
 GetOlympicGames(QueryURL,OlympicGameList,AnnoInicio,AnnoFin,BaseURL)
 
